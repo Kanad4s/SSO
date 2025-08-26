@@ -3,8 +3,13 @@ package auth
 import (
 	"SSO/internal/domain/models"
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
+
+	"grpc-service-ref/internal/lib/logger/sl"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // type UserStorage interface {
@@ -50,4 +55,27 @@ func New(
 		appProvider: appProvider,
 		tokenTTL:    tokenTTL,
 	}
+}
+
+func (a *Auth) RegisterNewUser(ctx context.Context, email string, password string) (int64, error) {
+	const op = "Auth.RegisterNewUser"
+
+	log := a.log.With(
+		slog.String("op", op),
+		slog.String("email", email),
+	)
+
+	passHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Error("failed to generate password hash", sl.Err(err))
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	id, err := a.usrSaver.SaveUser(ctx, email, passHash)
+	if err != nil {
+		log.Error("failed to save user", sl.Err(err))
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return id, nil
 }
