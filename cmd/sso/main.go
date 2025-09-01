@@ -1,9 +1,11 @@
 package main
 
 import (
-	"SSO/internal/config"
 	"log/slog"
 	"os"
+
+	"SSO/internal/app"
+	"SSO/internal/config"
 )
 
 const (
@@ -18,9 +20,9 @@ func main() {
 
 	log := setupLogger(cfg.Env)
 
-	// TODO: инициализировать приложение (app)
+	application := app.New(log, cfg.GRPC.Port, cfg.StoragePath, cfg.TokenTTL)
 
-	// TODO: запустить gRPC-сервер приложения
+	application.GRPCServer.MustRun()
 }
 
 func setupLogger(env string) *slog.Logger {
