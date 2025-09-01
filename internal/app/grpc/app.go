@@ -1,9 +1,9 @@
 package grpc
 
 import (
+	authgrpc "SSO/internal/grpc/auth"
 	"context"
 	"fmt"
-	authgrpc "grpc-service-ref/internal/grpc/auth"
 	"net"
 
 	"log/slog"
@@ -44,7 +44,7 @@ func New(log *slog.Logger, authService authgrpc.Auth, port int) *App {
 
 	gRPCServer := grpc.NewServer(grpc.ChainUnaryInterceptor(
 		recovery.UnaryServerInterceptor(recoveryOpts...),
-		logging.UnaryServerInterceptor(InterceptorLogger(log), loggingOpts)
+		logging.UnaryServerInterceptor(InterceptorLogger(log), loggingOpts...),
 	))
 
 	authgrpc.Register(gRPCServer, authService)
@@ -63,7 +63,6 @@ func InterceptorLogger(l *slog.Logger) logging.Logger {
 	})
 }
 
-
 func (a *App) MustRun() {
 	if err := a.Run(); err != nil {
 		panic(err)
@@ -72,7 +71,7 @@ func (a *App) MustRun() {
 
 func (a *App) Run() error {
 	const op = "grpcapp.Run"
-	a.gRPCServer
+
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", a.port))
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
