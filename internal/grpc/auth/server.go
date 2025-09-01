@@ -2,7 +2,8 @@ package auth
 
 import (
 	ssov1 "SSO/gen/go/sso"
-	"SSO/internal/grpc/auth"
+	"SSO/internal/services/auth"
+	"SSO/internal/storage"
 	"context"
 	"errors"
 
@@ -15,6 +16,7 @@ type serverAPI struct {
 	ssov1.UnimplementedAuthServer
 	auth Auth
 }
+
 type Auth interface {
 	Login(
 		ctx context.Context,
@@ -76,7 +78,7 @@ func (s *serverAPI) Register(
 
 	uid, err := s.auth.RegisterNewUser(ctx, in.Email, in.Password)
 	if err != nil {
-		if errors.Is(err, storage.UserExists) {
+		if errors.Is(err, storage.ErrUserExists) {
 			return nil, status.Error(codes.AlreadyExists, "user already exists")
 		}
 
