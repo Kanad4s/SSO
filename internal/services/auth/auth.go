@@ -2,12 +2,15 @@ package auth
 
 import (
 	"SSO/internal/domain/models"
+	"SSO/internal/storage"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
-	"grpc-service-ref/internal/lib/logger/sl"
+	"SSO/internal/lib/jwt"
+	"SSO/internal/lib/logger/sl"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -16,6 +19,10 @@ import (
 // 	SaveUser(ctx context.Context, email string, passHash []byte) (uid int64, err error)
 // 	User(ctx context.Context, email string) (models.User, error)
 // }
+
+var (
+	ErrInvalidCredentials = errors.New("invalid credentials")
+)
 
 type UserSaver interface {
 	SaveUser(
@@ -78,4 +85,57 @@ func (a *Auth) RegisterNewUser(ctx context.Context, email string, password strin
 	}
 
 	return id, nil
+}
+
+func (a *Auth) Login(
+	ctx context.Context,
+	email string,
+	password string,
+	appID int,
+) (string, error) {
+	const op = "Auth.Login"
+
+	log := a.log.With(
+		slog.Any("op", op),
+		slog.Any("username", email),
+		// log hide password or not log
+	)
+
+	log.Info("Attempting to log user")
+
+	user, err := a.usrProvider.User(ctx, email)
+	if err != nil {
+		if errors.Is(err, storage.ErrUserNotFound) {
+			a.log.Warn("user not found", sl.Err(err))
+
+			return "", fmt.Errorf("%s: %w", op, ErrInvalidCredentials)
+		}
+
+		a.log.Error("failed to get user", sl.Err(err))
+		return "", fmt.Errorf("%s: %w", op, ErrInvalidCredentials)
+	}
+
+	if err := bcrypt.CompareHashAndPassword(user.PassHash, []byte(password)); err != nil {
+		a.log.Info("invalid credentials", sl.Err(err))
+
+		return "", fmt.Errorf("%s: %w", op, err)
+	}
+
+	app, err := a.appProvider.App(ctx, appID)
+	if err != nil {
+		a.log.Error("failed to get app", sl.Err(err))
+
+		return "", fmt.Errorf("%s: %w", op, err)
+	}
+
+	log.Info("user logged in successfully")
+
+	token, err := jwt.NewToken(user, app, a.tokenTTL)
+	if err != nil {
+		a.log.Error("failed to generate token", sl.Err(err))
+
+		return "", fmt.Errorf("%s: %w", op, err)
+	}
+
+	return token, nil
 }
